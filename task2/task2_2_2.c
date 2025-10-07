@@ -14,8 +14,8 @@ int main() {
         poly = poly * x + a;
     }
     
-    printf("%.10g\n", poly);
-    printf("%.10g\n", deriv);
+    printf("%lf\n", poly);
+    printf("%lf\n", deriv);
     
     return 0;
 }
