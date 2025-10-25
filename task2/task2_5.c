@@ -8,6 +8,20 @@ typedef struct Node {
     struct Node *next;
 } Node;
 
+
+/* Функция увеличения буфера */
+void expand_buffer(char **buf, int *size) {
+    int new_size = (*size == 0) ? 2 : (*size * 2);
+    char *tmp = realloc(*buf, new_size);
+    if (!tmp) {
+        fprintf(stderr, "Ошибка выделения памяти при увеличении буфера\n");
+        free(*buf);
+        exit(1);
+    }
+    *buf = tmp;
+    *size = new_size;
+}
+
 /* Функция для создания нового узла */
 Node* create_node(const char *word) {
     Node *new_node = (Node*)malloc(sizeof(Node));
@@ -112,11 +126,33 @@ void print_list(Node *head) {
     printf("\n");
 }
 
+/* Чтение строки с удвоением буфера */
+char* read_line_dynamic(void) {
+    char *input = NULL;
+    int size = 0, len = 0;
+    int c;
+
+    while ((c = getchar()) != EOF && c != '\n') {
+        if (len + 1 >= size)
+            expand_buffer(&input, &size);
+        input[len++] = (char)c;
+    }
+
+    if (input) {
+        if (len + 1 >= size)
+            expand_buffer(&input, &size);
+        input[len] = '\0';
+    }
+
+    return input ? input : strdup("");
+}
+
 /* Функция для разбиения строки на слова и создания списка */
 Node* parse_string_to_list(const char *input) {
     Node *head = NULL;
-    const char *start = NULL;
+    char *word = NULL;
     const char *p = input;
+    int size = 0, len = 0;
     
     while (*p != '\0') {
         while (*p != '\0' && isspace(*p)) {
@@ -125,56 +161,44 @@ Node* parse_string_to_list(const char *input) {
         
         if (*p == '\0') break;
         
-        start = p;
+        size = 0;
+        len = 0;
+        word = NULL;
         
         while (*p != '\0' && !isspace(*p)) {
+            if (len + 1 >= size)
+                expand_buffer(&word, &size);
+            word[len++] = *p;
             p++;
         }
         
-        int word_length = p - start;
-        char *word = (char*)malloc(word_length + 1);
-        if (!word) {
-            fprintf(stderr, "Ошибка выделения памяти для слова\n");
-            free_list(head);
-            exit(1);
+        if (word) {
+            if (len + 1 >= size)
+                expand_buffer(&word, &size);
+            word[len] = '\0';
+            append_word(&head, word);
+            free(word);
+            word = NULL;
         }
-        
-        strncpy(word, start, word_length);
-        word[word_length] = '\0';
-        
-        append_word(&head, word);
-        free(word);
     }
     
     return head;
 }
 
 int main() {
-    char input[1024];
-    Node *word_list = NULL;
-    
     printf("Введите строку: ");
-    if (fgets(input, sizeof(input), stdin) == NULL) {
-        fprintf(stderr, "Ошибка чтения ввода\n");
-        return 1;
-    }
-    
-    size_t len = strlen(input);
-    if (len > 0 && input[len - 1] == '\n') {
-        input[len - 1] = '\0';
-    }
-    
-    word_list = parse_string_to_list(input);
-    
+    char *input = read_line_dynamic();
+
+    Node *word_list = parse_string_to_list(input);
+
     char *last_word = get_last_word(word_list);
-    
-    if (last_word != NULL) {
+    if (last_word)
         remove_all_occurrences(&word_list, last_word);
-    }
-    
+
     print_list(word_list);
-    
+
     free_list(word_list);
-    
+    free(input);
+
     return 0;
 }
