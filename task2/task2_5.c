@@ -11,7 +11,13 @@ typedef struct Node {
 
 /* Функция увеличения буфера */
 void expand_buffer(char **buf, int *size) {
-    int new_size = (*size == 0) ? 2 : (*size * 2);
+int new_size;
+    if (*size == 0) {
+        new_size = 2;
+    } else {
+        new_size = *size * 2;
+    }
+    
     char *tmp = realloc(*buf, new_size);
     if (!tmp) {
         fprintf(stderr, "Ошибка выделения памяти при увеличении буфера\n");
@@ -19,7 +25,6 @@ void expand_buffer(char **buf, int *size) {
         exit(1);
     }
     *buf = tmp;
-    *size = new_size;
 }
 
 /* Функция для создания нового узла */
@@ -129,22 +134,30 @@ void print_list(Node *head) {
 /* Чтение строки с удвоением буфера */
 char* read_line_dynamic(void) {
     char *input = NULL;
-    int size = 0, len = 0;
+    int size = 32, len = 0;
     int c;
 
+    input = (char*)malloc(size);
+    if (!input) {
+        fprintf(stderr, "Ошибка выделения памяти\n");
+        exit(1);
+    }
+
     while ((c = getchar()) != EOF && c != '\n') {
-        if (len + 1 >= size)
+        if (len + 1 >= size) {
             expand_buffer(&input, &size);
+        }
         input[len++] = (char)c;
     }
 
     if (input) {
-        if (len + 1 >= size)
+        if (len >= size) {
             expand_buffer(&input, &size);
+        }
         input[len] = '\0';
     }
 
-    return input ? input : strdup("");
+    return input;
 }
 
 /* Функция для разбиения строки на слова и создания списка */
@@ -161,9 +174,13 @@ Node* parse_string_to_list(const char *input) {
         
         if (*p == '\0') break;
         
-        size = 0;
+        size = 16;
         len = 0;
-        word = NULL;
+        word = (char*)malloc(size);
+         if (!word) {
+            fprintf(stderr, "Ошибка выделения памяти\n");
+            exit(1);
+        }
         
         while (*p != '\0' && !isspace(*p)) {
             if (len + 1 >= size)
