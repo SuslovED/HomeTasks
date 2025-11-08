@@ -1,5 +1,5 @@
 CC       ?= gcc
-CFLAGS    = -g -Wall -Wextra -ansi -pedantic
+CFLAGS    = -g -Wall -Wextra -std=c99 -pedantic
 
 SRCMODULES = words.c
 OBJMODULES = $(SRCMODULES:.c=.o)
