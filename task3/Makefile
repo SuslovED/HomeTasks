@@ -1,19 +1,24 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -std=c99 -g
+CC       ?= gcc
+CFLAGS    = -g -Wall -Wextra -ansi -pedantic
+
+SRCMODULES = words.c
+OBJMODULES = $(SRCMODULES:.c=.o)
 
 TARGET = task3
-OBJS = main.o words.o
 
-all: $(TARGET)
+%.o: %.c %.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(OBJS)
+$(TARGET): main.c $(OBJMODULES)
+	$(CC) $(CFLAGS) $^ -o $@
 
-main.o: main.c words.h
-	$(CC) $(CFLAGS) -c main.c
+ifneq (clean, $(MAKECMDGOALS))
+-include deps.mk
+endif
 
-words.o: words.c words.h
-	$(CC) $(CFLAGS) -c words.c
+deps.mk: main.c $(SRCMODULES)
+	$(CC) -MM $^ > $@
 
+.PHONY: clean
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f *.o $(TARGET) deps.mk
