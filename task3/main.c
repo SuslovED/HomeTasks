@@ -213,6 +213,7 @@ static Vertex start(StringList *list) {
         }
         if (list->size > 0) {
             finalizeList(list);
+            doubleWords(list);
             printList(list);
             sortList(list);
             printList(list);
@@ -231,6 +232,7 @@ static Vertex start(StringList *list) {
         }
         if (list->size > 0) {
             finalizeList(list);
+            doubleWords(list);
             printList(list);
             sortList(list);
             printList(list);

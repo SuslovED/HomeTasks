@@ -123,3 +123,23 @@ void sortList(StringList *list) {
 
     list->data[list->size] = NULL;
 }
+
+void doubleWords(StringList *list) {
+    if (!list || list->size <= 0 || !list->data) return;
+    for (int i = 0; i < list->size; ++i) {
+        char *s = list->data[i];
+        if (!s) continue;
+        size_t n = strlen(s);
+        char *t = (char *)malloc(n * 2 + 1);
+        if (!t) {
+            fprintf(stderr, "ошибка выделения памяти для удвоенного слова\n");
+            continue; 
+        }
+        memcpy(t, s, n);
+        memcpy(t + n, s, n);
+        t[2 * n] = '\0';
+        free(s);
+        list->data[i] = t;
+    }
+    return;
+}

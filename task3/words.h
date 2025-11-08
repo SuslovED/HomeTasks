@@ -55,4 +55,6 @@ void printList(const StringList *list);
  */
 void sortList(StringList *list);
 
+void doubleWords(StringList *list);
+
 #endif /* WORDS_H */
