@@ -9,8 +9,11 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <sys/file.h>
 
 #define PORT 8080
+#define MAX_VALUE_FILE "max_value_file.txt"
 
 FILE *stats_file;
 int server_running = 1;
@@ -26,7 +29,62 @@ void handle_sigchld(int sig) {
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
-void handle_client(int fd) {
+void update_max_value(int value, const char *client_info) {
+    FILE *f = fopen(MAX_VALUE_FILE, "r+");
+    if (!f) {
+        f = fopen(MAX_VALUE_FILE, "w");
+        if (!f) return;
+        fprintf(f, "%d\n%s\n", value, client_info);
+        fclose(f);
+        return;
+    }
+
+    int fd = fileno(f);
+    flock(fd, LOCK_EX);
+
+    int current_max = 0;
+    fseek(f, 0, SEEK_SET);
+    if (fscanf(f, "%d\n", &current_max) == 1) {
+        char dummy[256];
+        fgets(dummy, sizeof(dummy), f);
+    } else {
+        current_max = 0;
+    }
+
+    if (value > current_max) {
+        fseek(f, 0, SEEK_SET);
+        fprintf(f, "%d\n%s\n", value, client_info);
+        fflush(f);
+        ftruncate(fd, ftell(f));
+    }
+
+    flock(fd, LOCK_UN);
+    fclose(f);
+}
+
+int read_max_value(char *client_info_buf, size_t buf_size) {
+    FILE *f = fopen(MAX_VALUE_FILE, "r");
+    if (!f) {
+        client_info_buf[0] = '\0';
+        return 0;
+    }
+
+    int fd = fileno(f);
+    flock(fd, LOCK_SH);
+
+    int max_val;
+    if (fscanf(f, "%d\n%255[^\n]", &max_val, client_info_buf) != 2) {
+        max_val = 0;
+        client_info_buf[0] = '\0';
+    }
+
+    flock(fd, LOCK_UN);
+    fclose(f);
+    return max_val;
+}
+
+
+void handle_client(int fd, const char *client_info) {
     char buf[256];
     int inc = 1;
     int n;
@@ -68,6 +126,7 @@ void handle_client(int fd) {
             int num = strtol(p, &endptr, 10);
             
             if (*endptr == '\0') {
+                update_max_value(num, client_info);
                 int result = num + inc;
                 sprintf(buf, "%d\n", result);
                 write(fd, buf, strlen(buf));
@@ -79,6 +138,16 @@ void handle_client(int fd) {
     
     close(fd);
     exit(0);
+}
+
+void print_global_max(void) {
+    char client_info[256];
+    int max_val = read_max_value(client_info, sizeof(client_info));
+    if (max_val != INT_MIN) {
+        printf("Max value: %d from client %s\n", max_val, client_info);
+    } else {
+        printf("\nNo numbers.\n");
+    }
 }
 
 int main() {
@@ -120,10 +189,14 @@ int main() {
             continue;
         }
         
+        char client_info[256];
+        snprintf(client_info, sizeof(client_info), "%s:%d",
+             inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
         if (fork() == 0) {
             signal(SIGINT, SIG_IGN);
             close(sfd);
-            handle_client(cfd);
+            handle_client(cfd, client_info);
             exit(0);
         } else {
             close(cfd);
@@ -134,6 +207,9 @@ int main() {
     printf("Ожидание завершения клиентов...\n");
     
     while (waitpid(-1, NULL, 0) > 0);
-    
+
+    print_global_max();
+    remove(MAX_VALUE_FILE);
+
     return 0;
 }
