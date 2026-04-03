@@ -1,22 +1,18 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++11 -O2
-OBJS = matrix.o main.o
-TARGET = test_matrix
+CXXFLAGS = -Wall -Wextra -Werror -std=c++11 -pedantic
 
-.PHONY: all test clean
+TARGET = matrix_app
+OBJS = Matrix.o main.o
 
-all: test
-
-test: $(TARGET)
-	./$(TARGET) test
+all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS)
 
-matrix.o: matrix.cpp matrix.h
-	$(CXX) $(CXXFLAGS) -c matrix.cpp
+Matrix.o: Matrix.cpp Matrix.h
+	$(CXX) $(CXXFLAGS) -c Matrix.cpp
 
-main.o: main.cpp matrix.h
+main.o: main.cpp Matrix.h
 	$(CXX) $(CXXFLAGS) -c main.cpp
 
 clean:

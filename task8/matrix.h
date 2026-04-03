@@ -2,68 +2,134 @@
 #define MATRIX_H
 
 #include <iostream>
-#include <stdexcept>
 
-class matrix {
+class Matrix {
+public:
+    class error {
+    private:
+        char message_[256];
+    public:
+        error(const char* text, int line);
+        const char* what() const;
+    };
+
+    static const double EPS;
+
 private:
     int rows_;
     int cols_;
-    double** data_;
+    double* data_;
 
-    void allocate(int rows, int cols);
-    void deallocate();
-    void copyFrom(const matrix& other);
+    void allocate(int r, int c);
+    void destroy();
+    int index(int i, int j) const;
+    void check_matrix_index(int i, int j) const;
+    void check_slice_index(int i) const;
 
 public:
-    static const double EPS;
+    Matrix my_max() const;
+    Matrix my_max(int) const;
 
-    class error : public std::exception {
-    private:
-        char msg_[256];
-    public:
-        error(const char* file, int line, const char* what);
-        const char* what() const noexcept override;
-    };
+    class ElementProxy;
+    class ConstElementProxy;
+    class SliceProxy;
+    class ConstSliceProxy;
 
-    matrix();
-    matrix(int n, int m);
-    matrix(double d);
-    matrix(double* arr, int m);
-    matrix(int n, double* arr);
-    matrix(const char* str);
-    matrix(const matrix& other);
-    ~matrix();
+    Matrix();
+    Matrix(int n, int m);
+    Matrix(double value);
+    Matrix(double* values, int m);
+    Matrix(int n, double* values);
+    Matrix(const char* text);
+    Matrix(const Matrix& other);
+    Matrix& operator=(const Matrix& other);
+    ~Matrix();
 
-    matrix& operator=(const matrix& other);
+    static Matrix identity(int n);
+    static Matrix diagonal(double* vals, int n);
 
-    static matrix identity(int n);
-    static matrix diagonal(double* vals, int n);
+    int rows() const;
+    int columns() const;
 
-    int rows() const { return rows_; }
-    int columns() const { return cols_; }
-    void set(int i, int j, double val);
+    void set(int i, int j, double value);
     double get(int i, int j) const;
 
-    matrix operator[](int i) const;
+    SliceProxy operator[](int i);
+    ConstSliceProxy operator[](int i) const;
 
-    matrix operator+(const matrix& other) const;
-    matrix& operator+=(const matrix& other);
-    matrix operator-(const matrix& other) const;
-    matrix& operator-=(const matrix& other);
-    matrix operator*(const matrix& other) const;
-    matrix& operator*=(const matrix& other);
-    matrix operator*(double scalar) const;
-    friend matrix operator*(double scalar, const matrix& m);
-    matrix& operator*=(double scalar);
-    matrix operator-() const;
+    Matrix operator*(double scalar) const;
+    Matrix& operator*=(double scalar);
 
-    matrix operator|(const matrix& other) const;
-    matrix operator/(const matrix& other) const;
+    Matrix operator+(const Matrix& other) const;
+    Matrix& operator+=(const Matrix& other);
 
-    bool operator==(const matrix& other) const;
-    bool operator!=(const matrix& other) const;
+    Matrix operator-(const Matrix& other) const;
+    Matrix& operator-=(const Matrix& other);
 
-    friend std::ostream& operator<<(std::ostream& os, const matrix& m);
+    Matrix operator*(const Matrix& other) const;
+    Matrix& operator*=(const Matrix& other);
+
+    Matrix operator-() const;
+
+    bool operator==(const Matrix& other) const;
+    bool operator!=(const Matrix& other) const;
+
+    Matrix operator|(const Matrix& other) const; // справа
+    Matrix operator/(const Matrix& other) const; // снизу
+
+    friend std::ostream& operator<<(std::ostream& out, const Matrix& m);
+
+public:
+    class ElementProxy {
+    private:
+        Matrix* owner_;
+        int first_;
+        int second_;
+        bool row_mode_;
+
+    public:
+        ElementProxy(Matrix* owner, int first, int second, bool row_mode);
+        ElementProxy(const ElementProxy&) = default;
+        ElementProxy& operator=(double value);
+        ElementProxy& operator=(const ElementProxy& other);
+        operator double() const;
+        operator Matrix() const;
+    };
+
+    class ConstElementProxy {
+    private:
+        const Matrix* owner_;
+        int first_;
+        int second_;
+        bool row_mode_;
+
+    public:
+        ConstElementProxy(const Matrix* owner, int first, int second, bool row_mode);
+        operator double() const;
+        operator Matrix() const;
+    };
+
+    class SliceProxy {
+    private:
+        Matrix* owner_;
+        int pos_;
+
+    public:
+        SliceProxy(Matrix* owner, int pos);
+        ElementProxy operator[](int j);
+        operator Matrix() const;
+    };
+
+    class ConstSliceProxy {
+    private:
+        const Matrix* owner_;
+        int pos_;
+
+    public:
+        ConstSliceProxy(const Matrix* owner, int pos);
+        ConstElementProxy operator[](int j) const;
+        operator Matrix() const;
+    };
 };
 
 #endif
