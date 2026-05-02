@@ -319,6 +319,9 @@ void runTest() {
     std::cout << "\n  contains(\"hello\"): " << (s1.contains("hello") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"xyz\"):   " << (s1.contains("xyz") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"lo wo\"): " << (s1.contains("lo wo") ? "TRUE" : "FALSE");
+    s1.dropEven();
+    printSeparator();
+    s1.print();
     
     // ========== LIST<STRING> ==========
     List<std::string> l1;
@@ -333,6 +336,9 @@ void runTest() {
     std::cout << "\n  contains(\"example\"):    " << (l1.contains("example") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"hello world\"): " << (l1.contains("hello world") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"xyz\"):        " << (l1.contains("xyz") ? "TRUE" : "FALSE");
+    l1.dropEven();
+    printSeparator();
+    l1.print();
     
     // ========== STRINGLIST ==========
     StringList sl1("start");
@@ -348,6 +354,9 @@ void runTest() {
     std::cout << "\n  contains(\"world\"):  " << (sl1.contains("world") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"examp\"):  " << (sl1.contains("examp") ? "TRUE" : "FALSE");
     std::cout << "\n  contains(\"xyz\"):    " << (sl1.contains("xyz") ? "TRUE" : "FALSE");
+    sl1.dropEven();
+    printSeparator();
+    sl1.print();
     
     // ========== LIST<INT> ==========
     List<int> l2;
