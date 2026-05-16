@@ -26,3 +26,36 @@ struct Lex {
     Lex(LexType t, const std::string& s, int n, int l, int c)
         : type(t), str(s), num(n), line(l), col(c) {}
 };
+
+// Команды внутреннего представления (ПОЛИЗ)
+enum PolizCmdType {
+    CMD_PUSH_INT,
+    CMD_PUSH_STR,
+    CMD_PUSH_BOOL,
+    CMD_PUSH_VAR,
+    CMD_LOAD_VAR,
+    CMD_STORE,
+    CMD_ADD, CMD_SUB, CMD_MUL, CMD_DIV,
+    CMD_NEG,
+    CMD_NOT,
+    CMD_AND, CMD_OR,
+    CMD_EQ, CMD_NEQ, CMD_LT, CMD_GT, CMD_LE, CMD_GE,
+    CMD_READ,
+    CMD_WRITE,
+    CMD_JUMP,
+    CMD_JUMP_IF_FALSE,
+    CMD_LABEL,
+    CMD_HALT
+};
+
+struct PolizCmd {
+    PolizCmdType cmd;
+    int arg_int;
+    std::string arg_str;
+    bool arg_bool;
+
+    PolizCmd(PolizCmdType c) : cmd(c), arg_int(0), arg_bool(false) {}
+    PolizCmd(PolizCmdType c, int a) : cmd(c), arg_int(a), arg_bool(false) {}
+    PolizCmd(PolizCmdType c, const std::string& s) : cmd(c), arg_int(0), arg_str(s), arg_bool(false) {}
+    PolizCmd(PolizCmdType c, bool b) : cmd(c), arg_int(0), arg_bool(b) {}
+};

@@ -1,3 +1,4 @@
+// Scanner.cpp
 #include "Scanner.h"
 #include <cctype>
 #include <stdexcept>
@@ -90,11 +91,19 @@ Lex Scanner::getString() {
 
 Lex Scanner::getLex() {
     skipSpacesAndComments();
-    if (c == EOF) return Lex(LEX_FIN, "", 0, line, col);
+    if (c == EOF) {
+        return Lex(LEX_FIN, "", 0, line, col);
+    }
     
-    if (isalpha(c)) return getIdent();
-    if (isdigit(c)) return getNumber();
-    if (c == '"')  return getString();
+    if (isalpha(c)) {
+        return getIdent();
+    }
+    if (isdigit(c)) {
+        return getNumber();
+    }
+    if (c == '"')  {
+        return getString();
+    }
 
     char cur = c;
     nextChar();

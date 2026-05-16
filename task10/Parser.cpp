@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <sstream>
 
-Parser::Parser(std::istream &input) : scanner(input), cycle_depth(0) {
+Parser::Parser(std::istream &input) : scanner(input), cycle_depth(0), label_counter(0) {
     gl();
 }
 
@@ -97,7 +97,7 @@ void Parser::eq_type() {
           (t_var == LEX_STR && t_expr == LEX_STR) ||
           (t_var == LEX_BOOL && t_expr == LEX_BOOL)))
         error("Type mismatch in assignment");
-    st_lex.push(t_expr);   // результат присваивания имеет тип правой части
+    st_lex.push(t_expr);
 }
 
 void Parser::eq_bool() {
@@ -109,7 +109,72 @@ void Parser::check_break_continue() {
     if (cycle_depth == 0) error("break/continue outside of loop");
 }
 
-//=== Грамматика ===
+//------------------ Генерация ПОЛИЗа ------------------
+void Parser::emit(const PolizCmd& cmd) {
+    poliz.push_back(cmd);
+}
+
+int Parser::make_label() {
+    return ++label_counter;
+}
+
+void Parser::emit_label(int lbl) {
+    label_addr[lbl] = poliz.size();   // запоминаем индекс, куда вставлена метка
+    poliz.push_back(PolizCmd(CMD_LABEL, lbl));
+    // разрешаем все переходы, ожидавшие эту метку
+    for (size_t i = 0; i < pending_jumps.size(); ) {
+        if (pending_jumps[i].second == lbl) {
+            int cmd_idx = pending_jumps[i].first;
+            poliz[cmd_idx].arg_int = label_addr[lbl];
+            // удаляем запись
+            pending_jumps.erase(pending_jumps.begin() + i);
+            // не увеличиваем i, так как элементы сдвинулись
+        } else {
+            ++i;
+        }
+    }
+}
+
+void Parser::emit_jump(int lbl) {
+    auto it = label_addr.find(lbl);
+    if (it != label_addr.end()) {
+        emit(PolizCmd(CMD_JUMP, it->second));   // метка уже известна
+    } else {
+        emit(PolizCmd(CMD_JUMP, lbl));          // временно кладём номер метки
+        pending_jumps.emplace_back(poliz.size() - 1, lbl);
+    }
+}
+
+void Parser::emit_jump_if_false(int lbl) {
+    auto it = label_addr.find(lbl);
+    if (it != label_addr.end()) {
+        emit(PolizCmd(CMD_JUMP_IF_FALSE, it->second));
+    } else {
+        emit(PolizCmd(CMD_JUMP_IF_FALSE, lbl));
+        pending_jumps.emplace_back(poliz.size() - 1, lbl);
+    }
+}
+
+void Parser::gen_constant() {
+    switch (curr_lex.type) {
+        case LEX_NUM:
+            emit(PolizCmd(CMD_PUSH_INT, curr_lex.num));
+            break;
+        case LEX_STR:
+            emit(PolizCmd(CMD_PUSH_STR, curr_lex.str));
+            break;
+        case LEX_TRUE:
+            emit(PolizCmd(CMD_PUSH_BOOL, true));
+            break;
+        case LEX_FALSE:
+            emit(PolizCmd(CMD_PUSH_BOOL, false));
+            break;
+        default:
+            error("Internal: unexpected constant");
+    }
+}
+
+//------------------ Грамматика ------------------
 
 void Parser::P() {
     if (curr_lex.type != LEX_PROGRAM) error("Expected 'program'");
@@ -121,6 +186,7 @@ void Parser::P() {
     if (curr_lex.type != LEX_RBRACE) error("Expected '}'");
     gl();
     if (curr_lex.type != LEX_FIN) error("Extra tokens after end of program");
+    emit(PolizCmd(CMD_HALT));
 }
 
 void Parser::Descriptions() {
@@ -174,28 +240,53 @@ void Parser::Operator() {
         eq_bool();
         if (curr_lex.type != LEX_RPAREN) error("Expected ')'");
         gl();
-        Operator();  // then
+        int else_label = make_label();
+        emit_jump_if_false(else_label);
+        Operator(); // then
         if (curr_lex.type == LEX_ELSE) {
+            int end_label = make_label();
+            emit_jump(end_label);
+            emit_label(else_label);
             gl();
-            Operator();
+            Operator(); // else
+            emit_label(end_label);
+        } else {
+            emit_label(else_label);
         }
     }
     else if (curr_lex.type == LEX_WHILE) {
         gl();
         if (curr_lex.type != LEX_LPAREN) error("Expected '('");
         gl();
+        int begin_loop = make_label();
+        int end_loop = make_label();
+        emit_label(begin_loop);
         Expression();
         eq_bool();
         if (curr_lex.type != LEX_RPAREN) error("Expected ')'");
         gl();
+        emit_jump_if_false(end_loop);
         ++cycle_depth;
-        Operator();
+        break_stack.push(end_loop);
+        continue_stack.push(begin_loop);
+        Operator(); // body
+        break_stack.pop();
+        continue_stack.pop();
         --cycle_depth;
+        emit_jump(begin_loop);
+        emit_label(end_loop);
     }
     else if (curr_lex.type == LEX_DO) {
         gl();
+        int begin_loop = make_label();
+        int end_loop = make_label();
+        emit_label(begin_loop);
         ++cycle_depth;
-        Operator();
+        break_stack.push(end_loop);
+        continue_stack.push(begin_loop);
+        Operator(); // body
+        break_stack.pop();
+        continue_stack.pop();
         --cycle_depth;
         if (curr_lex.type != LEX_WHILE) error("Expected 'while' after do");
         gl();
@@ -207,15 +298,22 @@ void Parser::Operator() {
         gl();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after do-while");
         gl();
+        emit_jump_if_false(end_loop);
+        emit_jump(begin_loop);
+        emit_label(end_loop);
     }
     else if (curr_lex.type == LEX_BREAK) {
         check_break_continue();
+        if (break_stack.empty()) error("break outside of loop");
+        emit_jump(break_stack.top());
         gl();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after break");
         gl();
     }
     else if (curr_lex.type == LEX_CONTINUE) {
         check_break_continue();
+        if (continue_stack.empty()) error("continue outside of loop");
+        emit_jump(continue_stack.top());
         gl();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after continue");
         gl();
@@ -233,32 +331,33 @@ void Parser::Operator() {
         gl();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after read");
         gl();
+        emit(PolizCmd(CMD_READ, idx));
     }
     else if (curr_lex.type == LEX_WRITE) {
         gl();
         if (curr_lex.type != LEX_LPAREN) error("Expected '('");
         gl();
         Expression();
+        emit(PolizCmd(CMD_WRITE));
         while (curr_lex.type == LEX_COMMA) {
             gl();
             Expression();
+            emit(PolizCmd(CMD_WRITE));
         }
         if (curr_lex.type != LEX_RPAREN) error("Expected ')'");
         gl();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after write");
         gl();
-        // очищаем стек типов выведенных выражений
-        while (!st_lex.empty()) st_lex.pop();
     }
-    else if (curr_lex.type == LEX_LBRACE) {   // составной оператор
+    else if (curr_lex.type == LEX_LBRACE) {
         gl();
         while (curr_lex.type != LEX_RBRACE) Operator();
         gl();
     }
-    else if (curr_lex.type == LEX_SEMICOLON) { // пустой оператор
+    else if (curr_lex.type == LEX_SEMICOLON) {
         gl();
     }
-    else { // оператор-выражение
+    else {
         Expression();
         if (curr_lex.type != LEX_SEMICOLON) error("Expected ';' after expression");
         gl();
@@ -272,19 +371,28 @@ void Parser::Expression() {
 void Parser::E() {
     E1();
     if (curr_lex.type == LEX_ASSIGN) {
+        if (poliz.empty() || poliz.back().cmd != CMD_PUSH_VAR)
+            error("Assignment to non-variable");
+        int idx = poliz.back().arg_int;
+        poliz.pop_back();
+        emit(PolizCmd(CMD_LOAD_VAR, idx));
         gl();
         E();
         eq_type();
+        emit(PolizCmd(CMD_STORE));
+        // для цепочки a = b = c оставляем значение на стеке
+        emit(PolizCmd(CMD_PUSH_VAR, idx));
     }
 }
 
 void Parser::E1() {
     E2();
     while (curr_lex.type == LEX_OR) {
-        st_lex.push(curr_lex.type);   // кладём оператор
+        st_lex.push(curr_lex.type);
         gl();
         E2();
         check_op();
+        emit(PolizCmd(CMD_OR));
     }
 }
 
@@ -295,6 +403,7 @@ void Parser::E2() {
         gl();
         E3();
         check_op();
+        emit(PolizCmd(CMD_AND));
     }
 }
 
@@ -304,10 +413,19 @@ void Parser::E3() {
         curr_lex.type == LEX_LT || curr_lex.type == LEX_GT ||
         curr_lex.type == LEX_LE || curr_lex.type == LEX_GE) {
         LexType rel = curr_lex.type;
-        st_lex.push(rel);   // оператор отношения
+        st_lex.push(rel);
         gl();
         E4();
         check_op();
+        switch(rel) {
+            case LEX_EQ: emit(PolizCmd(CMD_EQ)); break;
+            case LEX_NEQ: emit(PolizCmd(CMD_NEQ)); break;
+            case LEX_LT: emit(PolizCmd(CMD_LT)); break;
+            case LEX_GT: emit(PolizCmd(CMD_GT)); break;
+            case LEX_LE: emit(PolizCmd(CMD_LE)); break;
+            case LEX_GE: emit(PolizCmd(CMD_GE)); break;
+            default: break;
+        }
     }
 }
 
@@ -315,10 +433,11 @@ void Parser::E4() {
     E5();
     while (curr_lex.type == LEX_PLUS || curr_lex.type == LEX_MINUS) {
         LexType op = curr_lex.type;
-        st_lex.push(op);    // оператор сложения/вычитания
+        st_lex.push(op);
         gl();
         E5();
         check_op();
+        emit(op == LEX_PLUS ? PolizCmd(CMD_ADD) : PolizCmd(CMD_SUB));
     }
 }
 
@@ -326,10 +445,11 @@ void Parser::E5() {
     E6();
     while (curr_lex.type == LEX_STAR || curr_lex.type == LEX_SLASH) {
         LexType op = curr_lex.type;
-        st_lex.push(op);    // оператор умножения/деления
+        st_lex.push(op);
         gl();
         E6();
         check_op();
+        emit(op == LEX_STAR ? PolizCmd(CMD_MUL) : PolizCmd(CMD_DIV));
     }
 }
 
@@ -338,11 +458,13 @@ void Parser::E6() {
         gl();
         E6();
         check_unary_minus();
+        emit(PolizCmd(CMD_NEG));
     }
     else if (curr_lex.type == LEX_NOT) {
         gl();
         E6();
         check_not();
+        emit(PolizCmd(CMD_NOT));
     }
     else {
         E7();
@@ -352,18 +474,16 @@ void Parser::E6() {
 void Parser::E7() {
     if (curr_lex.type == LEX_ID) {
         check_id();
+        int idx = addIdent(curr_lex.str);
+        emit(PolizCmd(CMD_PUSH_VAR, idx));
         gl();
     }
-    else if (curr_lex.type == LEX_NUM) {
-        st_lex.push(LEX_INT);
-        gl();
-    }
-    else if (curr_lex.type == LEX_STR) {
-        st_lex.push(LEX_STR);
-        gl();
-    }
-    else if (curr_lex.type == LEX_TRUE || curr_lex.type == LEX_FALSE) {
-        st_lex.push(LEX_BOOL);
+    else if (curr_lex.type == LEX_NUM || curr_lex.type == LEX_STR ||
+             curr_lex.type == LEX_TRUE || curr_lex.type == LEX_FALSE) {
+        gen_constant();
+        if (curr_lex.type == LEX_NUM) st_lex.push(LEX_INT);
+        else if (curr_lex.type == LEX_STR) st_lex.push(LEX_STR);
+        else st_lex.push(LEX_BOOL);
         gl();
     }
     else if (curr_lex.type == LEX_LPAREN) {
@@ -381,5 +501,6 @@ void Parser::analyze() {
         std::cout << "OK" << std::endl;
     } catch (const std::exception &e) {
         std::cout << "Analysis error: " << e.what() << std::endl;
+        poliz.clear();   // очищаем неполную программу
     }
 }
