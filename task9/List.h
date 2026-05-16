@@ -35,6 +35,8 @@ public:
     void print() const;
     void insert(size_t pos, const T& value);
     void erase(size_t pos);
+
+    void dropEven() override;
 };
 
 
@@ -117,6 +119,18 @@ void List<T>::erase(size_t pos) {
     if (pos >= m_size) return;
     for (size_t i = pos; i < m_size - 1; ++i) m_data[i] = m_data[i + 1];
     --m_size;
+}
+
+template <typename T>
+void List<T>::dropEven() {
+    size_t new_size = 0;
+    for (size_t i = 0; i < m_size; ++i) {
+        if (i % 2 == 0) {
+            m_data[new_size] = m_data[i];
+            ++new_size;
+        }
+    }
+    m_size = new_size;
 }
 
 #endif

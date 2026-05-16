@@ -87,3 +87,24 @@ String String::substr(size_t pos, size_t len) const {
     return result;
 }
 
+void String::dropEven() {
+    if (m_length == 0) return;
+
+    char* new_data = new char[m_capacity];
+    size_t new_len = 0;
+
+    for (size_t i = 0; i < m_length; ++i) {
+        if (i % 2 == 0) {
+            new_data[new_len] = m_data[i];
+            ++new_len;
+        }
+    }
+    new_data[new_len] = '\0';
+
+    for (size_t i = 0; i <= new_len; ++i) {
+        m_data[i] = new_data[i];
+    }
+    m_length = new_len;
+
+    delete[] new_data;
+}

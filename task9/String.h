@@ -31,6 +31,8 @@ public:
     void print() const;
     char operator[](size_t index) const;
     String substr(size_t pos, size_t len) const;
+
+    void dropEven() override;
 };
 
 #endif

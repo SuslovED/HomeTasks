@@ -10,6 +10,8 @@ public:
     virtual bool contains(const T& value) const = 0;
     virtual size_t length() const = 0;
     virtual std::string getType() const = 0;
+
+    virtual void dropEven() = 0;
 };
 
 #endif
